@@ -1,66 +1,97 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# laravel playground
+php artisan make:model Customer --all
+php artisan make:model Invoice --all
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## steps
+1. models
+2. migrations
+3. factory
+4. seeders
 
-## About Laravel
+### models (tables relations)
+one-to-many relationship
+a one customer can have many invoices
+app/models/customer.php
+```php
+public function invoices() {
+	return $this->hasMany(Invoice::class);
+}
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+app/models/customer.php
+```php
+public function customer() {
+	return $this->belongsTo(Customer::class);
+}
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### migration (create table)
+in the migrations folder, this is where you create your table and stuff with the necessary fields/columns
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+after creating our tables like so for example
+```php
+Schema::create('invoices', function (Blueprint $table) {
+	$table->id();
+	$table->string('customer_id'); //foreign key references customer table id column
+	$table->integer('amount');
+	$table->string('status'); //Billed, Paid, Void
+	$table->dateTime('date_billed');
+	$table->dateTime('paid_billed')->nullable();
+	$table->timestamps();
+});
+```
 
-## Learning Laravel
+### factory (function that populates table)
+we then go to the factories folder 
+and populate the tables with random values like this
+```php
+$type = fake()->randomElement(['I', 'B']); // individual or business
+$name = $type == 'I' ? fake()->name() : fake()->company();
+return [
+	'name' => $name,
+	'type' => $type,
+	'email' => fake()->email(),
+	'address' => fake()->streetAddress(),
+	'city' => fake()->city(),
+	'state' => fake()->state(),
+	'postal_code' => fake()->postcode(),
+];
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### seed (call factory functions to populate table)
+then we seed our values in customerseeders file
+```php
+Customer::factory()
+	->count(25)
+	->hasInvoices(10)
+	->create();
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Customer::factory()
+	->count(100)
+	->hasInvoices(5)
+->create();
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Customer::factory()
+->count(5)
+->create();
+```
 
-## Laravel Sponsors
+then go to the databaseseeders file
+```php
+// User::factory(10)->create();
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+User::factory()->create([
+	'name' => 'Test User',
+	'email' => 'test@example.com',
+]);
 
-### Premium Partners
+$this->call([
+	CustomerSeeder::class
+]);
+```
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### last step
+`php artisan migrate:fresh --seed`
+p.s. `fresh` is used to drop all tables and rerun migrations
+# References
+[How to Build a REST API With Laravel: PHP Full Course (youtube.com)](https://www.youtube.com/watch?v=YGqCZjdgJJk&t=348s)
