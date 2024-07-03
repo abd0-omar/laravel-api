@@ -14,10 +14,11 @@ class CustomerResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // return parent::toArray($request);
+        // CustomeJson response
         // return snake_case json
         // keys are the property names in the json
         // then provide the values for the properties
-        // return parent::toArray($request);
         return [
             'id' => $this->id,
             'name' => $this->name,
