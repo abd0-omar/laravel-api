@@ -8,15 +8,27 @@ use App\Models\Customer;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\v1\CustomerCollection;
 use App\Http\Resources\v1\CustomerResource;
+use App\Filters\v1\CustomerFilter;
+use Illuminate\Http\Request;
 
 class CustomerController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return new CustomerCollection(Customer::paginate());
+        // it's better to filter than to search for apis
+        $filter = new CustomerFilter();
+        $queryItems = $filter->transform($request); //[['column', 'operator', 'value']]
+        // eg. customers?postalCode\[gt]=30000
+
+        if (count($queryItems) == 0) {
+            // do what we did originally without filtering
+            return new CustomerCollection(Customer::paginate());
+        } else {
+            return new CustomerCollection(Customer::where($queryItems)->paginate());
+        }
     }
 
     /**
