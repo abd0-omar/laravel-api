@@ -21,14 +21,33 @@ class CustomerController extends Controller
         // it's better to filter than to search for apis
         $filter = new CustomerFilter();
         $queryItems = $filter->transform($request); //[['column', 'operator', 'value']]
-        // eg. customers?postalCode\[gt]=30000
+        // eg. $queryName = $request->query('name'); // Returns ['eq' => 'John']
+        // eg. customers?postalCode[gt]=30000
 
-        if (count($queryItems) == 0) {
-            // do what we did originally without filtering
-            return new CustomerCollection(Customer::paginate());
-        } else {
-            return new CustomerCollection(Customer::where($queryItems)->paginate());
+        $customers = Customer::where($queryItems);
+
+        // customers?postalCode[gt]=30000&includeInvoices=true
+        // true or false
+        // $includeInvoices = $request->query('includeInvoices'); // Returns true or false
+        $includeInvoices = $request->query('includeInvoices');
+
+        if ($includeInvoices) {
+            // makes sure to add 'invoices' to CustomerResource 
+            $customers = $customers->with('invoices');
         }
+
+        return new CustomerCollection($customers->paginate()->appends($request->query()));
+
+        // no need to check for count
+        // if (count($queryItems) == 0) {
+        //     // do what we did originally without filtering
+        //     return new CustomerCollection(Customer::paginate());
+        // } else {
+        //     // if you pass and empty array `[]` to where([]), then where() will do nothing and execute normally
+        //     // $customers = Customer::where([])->paginate();
+        //     $customers = Customer::where($queryItems)->paginate();
+        //     return new CustomerCollection($customers->appends($request->query()));
+        // }
     }
 
     /**
@@ -52,6 +71,14 @@ class CustomerController extends Controller
      */
     public function show(Customer $customer)
     {
+        // true or false
+        $includeInvoices = Request()->query('includeInvoices');
+
+        if ($includeInvoices) {
+            // the only key missing (invoices) in the resources file
+            return new CustomerResource($customer->loadMissing('invoices'));
+        }
+
         return new CustomerResource($customer);
     }
 

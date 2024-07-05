@@ -30,6 +30,9 @@ class CustomerResource extends JsonResource
             // change it to snake_case
             'postalCode' => $this->postal_code,
             // and we omitted the timestamps filed
+
+            //
+            'invoices' => InvoiceResource::collection($this->whenLoaded('invoices')),
         ];
     }
 }
