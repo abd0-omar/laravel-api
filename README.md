@@ -594,6 +594,184 @@ return [
 ];
 ```
 
+`customers/9?postalCode[gt]=30000&includeInvoices=false`
+it'll work with `=false` too or any other thing after the =
+
+
+# part 7
+## Creating Resources With Post Requests
+create a customer with a post request
+
+we don't need the create() & edit() in CustomerController.php
+
+```php
+// /**
+//  * Show the form for editing the specified resource.
+//  */
+// public function edit(Customer $customer)
+// {
+//     //
+// }
+```
+
+```php
+// /**
+//  * Show the form for creating a new resource.
+//  */
+// public function create()
+// {
+//     //
+// }
+```
+
+```php
+public function store(StoreCustomerRequest $request)
+{
+	return new CustomerResource(Customer::create($request->all()));
+}
+```
+
+StoreCustomerRequest works as axum's (a Rust framework) fromRequest fn 
+
+
+be careful when you specify the fields that you want to be fillable
+
+all the fields are fillabe in the customer.php
+
+if you don't have the file StoreCustomerRequest.php
+then do this command
+
+`artisan serve make:request v1\StoreCustomerRequest`
+
+
+change this to true
+StoreCustomerRequest.php
+
+```php
+/**
+ * Determine if the user is authorized to make this request.
+ */
+public function authorize(): bool
+{
+	// return false;
+	return true;
+}
+```
+
+for testing and because we don't have authorization yet 
+
+```php
+    protected $fillable = [
+        'name',
+        'type',
+        'email',
+        'address',
+        'city',
+        'state',
+        // actual db column name
+        'postal_code',
+    ];
+
+```
+
+StoreCustomerRequest.php
+```php
+    public function rules(): array
+    {
+        return [
+            // 'name' => ['required', 'name'],
+            'name' => ['required'],
+            'type' => ['required', Rule::in(['I', 'B', 'i', 'b'])],
+            'email' => ['required', 'email'],
+            'address' => ['required'],
+            'city' => ['required'],
+            'state' => ['required'],
+            'postalCode' => ['required'],
+        ];
+    }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'postal_code' => $this->postalCode,
+        ]);
+    }
+```
+
+# part 8
+## Updating With Put & Patch
+edit the customer with a put request
+
+put request updates all fields in a row
+patch request updates certain fields
+
+in laravel update() handles both put and patch requests
+
+```php
+// CustomerController.php
+/**
+ * Update the specified resource in storage.
+ */
+public function update(UpdateCustomerRequest $request, Customer $customer)
+{
+	//
+}
+```
+
+if you don't have the file UpdateCustomerReuquest.php
+then do this command
+
+`artisan serve make:request v1\UpdateCustomerRequest`
+
+for a put request we will copy all the rules and functions of StoreCustomerRequest because they have essentially the same rules
+
+
+UpdateCustomerRequest.php
+```php
+public function rules(): array
+{
+	// extract the method used (PUT or PATCH)
+	$method = $this->method();
+
+	if ($method == 'PUT') {
+		return [
+			// 'name' => ['required', 'name'],
+			'name' => ['required'],
+			'type' => ['required', Rule::in(['I', 'B', 'i', 'b'])],
+			'email' => ['required', 'email'],
+			'address' => ['required'],
+			'city' => ['required'],
+			'state' => ['required'],
+			'postalCode' => ['required'],
+		];
+	} else {
+		return [
+			// 'name' => ['required', 'name'],
+			'name' => ['sometimes', 'required'],
+			'type' => ['sometimes', 'required', Rule::in(['I', 'B', 'i', 'b'])],
+			'email' => ['sometimes', 'required', 'email'],
+			'address' => ['sometimes', 'required'],
+			'city' => ['sometimes', 'required'],
+			'state' => ['sometimes', 'required'],
+			'postalCode' => ['sometimes', 'required'],
+		];
+	}
+}
+```
+
+
+if we did a patch without providing postalcode, this fn() should do nothing 
+```php
+    protected function prepareForValidation()
+    {
+        if ($this->postalCode) {
+            $this->merge([
+                'postal_code' => $this->postalCode,
+            ]);
+        }
+    }
+```
+
 
 # References
 [How to Build a REST API With Laravel: PHP Full Course (youtube.com)](https://www.youtube.com/watch?v=YGqCZjdgJJk&t=348s)
