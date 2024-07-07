@@ -631,12 +631,28 @@ public function store(StoreCustomerRequest $request)
 }
 ```
 
-StoreCustomerRequest works as axum's (a Rust framework) fromRequest fn 
+StoreCustomerRequest works as axum's fromRequest fn
+so it intercepts it before it reaches Customer::create() and does modify() and everything to check the rules and prepare for validation usin modify()
 
 
 be careful when you specify the fields that you want to be fillable
 
 all the fields are fillabe in the customer.php
+
+Customer.php
+```php
+    protected $fillable = [
+        'name',
+        'type',
+        'email',
+        'address',
+        'city',
+        'state',
+        // actual db column name
+        'postal_code',
+    ];
+
+```
 
 if you don't have the file StoreCustomerRequest.php
 then do this command
@@ -658,21 +674,8 @@ public function authorize(): bool
 }
 ```
 
-for testing and because we don't have authorization yet 
+because we don't have authorization yet 
 
-```php
-    protected $fillable = [
-        'name',
-        'type',
-        'email',
-        'address',
-        'city',
-        'state',
-        // actual db column name
-        'postal_code',
-    ];
-
-```
 
 StoreCustomerRequest.php
 ```php
@@ -693,9 +696,12 @@ StoreCustomerRequest.php
     protected function prepareForValidation()
     {
         $this->merge([
+			// the key you want to add or modify => the value from the request data
+// adds postal_code to the request data instead of postalCode and it's value is the value of postalCode from the original request
             'postal_code' => $this->postalCode,
         ]);
     }
+}
 ```
 
 # part 8
@@ -745,6 +751,7 @@ public function rules(): array
 			'postalCode' => ['required'],
 		];
 	} else {
+		// 'PATCH'
 		return [
 			// 'name' => ['required', 'name'],
 			'name' => ['sometimes', 'required'],
@@ -770,6 +777,76 @@ if we did a patch without providing postalcode, this fn() should do nothing
             ]);
         }
     }
+```
+
+# part 9
+## Implementing Bulk Insert
+inserting records in bulk, not every api need to provide that but for our use cases inserting invoices in batches makes sense.
+
+```php
+public function bulkStore(Request $request) {
+	
+}
+```
+we will change the parameter later to be our custom class to make sure that it is a valid "bulk" request before inserting in the database
+
+we could use artisan to make our requestclass but we will do it our selves
+
+```php
+Route::prefix('v1')->namespace('App\Http\Controllers\api\v1')->group(function () {
+    Route::apiResource('customers', CustomerController::class);
+    Route::apiResource('invoices', InvoiceController::class);
+
+	// new!!
+    Route::post('invoices/bulk', ['uses' => 'InvoiceController@bulkStore']);
+});
+```
+
+duplicate the StoreCustomerRequest.php and change it's name to BulkStoreInvoiceRequest.php
+
+
+bulk data
+`` [{CustomerId: }, {CustomerId: }]
+
+
+BulkStoreInvoiceRequest.php
+```php
+public function rules(): array
+    {
+        return [
+			// *.because we have an array of jsons
+			// if we had
+			// data: [
+			//     { }
+			// ]
+			// then it would be like this
+			// 'data.*.customer_id' => ['required', 'integer'],
+            '*.customerId' => ['required', 'integer'],
+            '*.amount' => ['required', 'numeric'],
+            '*.status' => ['required', Rule::in(['B', 'P', 'V', 'b', 'p', 'v'])],
+            '*.billedDate' => ['required', 'date_format:Y-m-d H:i:s'],
+            '*.paidDate' => ['date_format:Y-m-d H:i:s', 'nullable'],
+        ];
+    }
+
+```
+```
+
+```
+
+invoiceController.php
+```php
+public function bulkStore(BulkStoreInvoiceRequest $request)
+{
+	// transform $request array to a collection
+	$bulk = collect($request->all())->map(function ($arr, $key) {
+		return Arr::except($arr, ['customerId', 'billedDate', 'paidDate']);
+	});
+
+
+	// insert takes an array not a collection
+	Invoice::insert($bulk->toArray());
+}
 ```
 
 
