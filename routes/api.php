@@ -11,7 +11,7 @@ Route::get('/user', function (Request $request) {
 
 // api/v1/customers (endpoint)
 
-Route::prefix('v1')->namespace('App\Http\Controllers\api\v1')->group(function () {
+Route::prefix('v1')->namespace('App\Http\Controllers\api\v1')->middleware('auth:sanctum')->group(function () {
     Route::apiResource('customers', CustomerController::class);
     Route::apiResource('invoices', InvoiceController::class);
 
