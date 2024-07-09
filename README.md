@@ -830,9 +830,6 @@ public function rules(): array
     }
 
 ```
-```
-
-```
 
 invoiceController.php
 ```php
@@ -848,6 +845,216 @@ public function bulkStore(BulkStoreInvoiceRequest $request)
 	Invoice::insert($bulk->toArray());
 }
 ```
+
+# part 10
+## protecting routes with sanctum
+## sanctum, token authentication
+sanctum is added by default
+
+
+if user exists, then assign some tokens
+if the user doesn't exist, then nothing happen
+
+
+`composer require laravel/sanctum`
+`php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"`
+
+web.php
+```php
+Route::get('/setup', function () {
+    $credentials = [
+        'email' => 'admin@admin.com',
+        'password' => 'password'
+    ];
+
+    if (!Auth::attempt($credentials)) {
+        // Create a new user
+        $user = new User();
+
+		// add the name and stuff to the user row in the db
+        $user->name = 'admin';
+        $user->email = $credentials['email'];
+        $user->password = Hash::make($credentials['password']);
+
+		// save it, I think save acts like a transaction or something
+        $user->save();
+
+        // Attempt authentication again
+        if (Auth::attempt($credentials)) {
+			// https://stackoverflow.com/questions/69444423/laravel-8-undefined-method-createtoken-intelephense1013
+			// I think the annotation line tell PHP intelephense that $user variable is not Illuminate\Foundation\Auth\User type but \App\Models\MyUserModel type.
+
+            /** @var \App\Models\User $user **/
+            $user = Auth::user();
+
+            // Create tokens
+			// it will get hashed in the db
+            $adminToken = $user->createToken('admin-token', ['create', 'update', 'delete']);
+            $updateToken = $user->createToken('update-token', ['create', 'update']);
+			// read only accesss
+            // not specifying abilities would result of `basicToken` having all access
+            // in the next chapter we will fix that by manually changing it in the db
+            $basicToken = $user->createToken('basic-token');
+
+			// you have to return the token in plain text after creating it
+            // because it's the only time we can get that plain text
+
+            return [
+                'admin' => $adminToken->plainTextToken,
+                'update' => $updateToken->plainTextToken,
+                'basic' => $basicToken->plainTextToken,
+            ];
+		}
+	}
+// implemented some error handling in the file in the repo
+});
+```
+
+
+make sure to have these lines in user.php
+```php
+use Laravel\Sanctum\HasApiTokens;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable, HasApiTokens;
+```
+
+routes/api.php
+add auth middleware
+```php
+Route::prefix('v1')->namespace('App\Http\Controllers\api\v1')->middleware('auth:sanctum')->group(function () {
+    Route::apiResource('customers', CustomerController::class);
+    Route::apiResource('invoices', InvoiceController::class);
+
+    Route::post('invoices/bulk', ['uses' => 'InvoiceController@bulkStore']);
+});
+```
+
+finally
+`http://localhost/setup`
+```json
+{
+    "admin": "1|B2xqgmjPankVZjVIshgqAixIxwk0gFeEuyH3cOjSba70ebfd",
+    "update": "2|OzuLgrnUCvt1Pey4P2am9Um60VatMIDczjpchp4E47301200",
+    "basic": "3|BK9cVAACBmG5NMuCNSMSs2LInO1qGWNq3yD3hklj9a284fc7"
+}
+```
+using any of these in the headers for our api paths eg. /api/v1/customers, will grant you access to it. 
+`curl --verbose`
+# LAST PART
+## Authorizing Requests With Token Abilities
+
+### change "basic" from all access to just viewing access
+
+```sql
+select * from personal_access_tokens where id = '3';
+```
+
+```json
+[{"id":3,"tokenable_type":"App\\Models\\User","tokenable_id":3,"name":"basic-token","token":"450579341a0792b34532ec221a4a8a7e2923c2b005502639684d7f26a5f38c92","abilities":"[\"*\"]","last_used_at":"2024-07-09 09:58:17","expires_at":null,"created_at":"2024-07-08 10:56:12","updated_at":"2024-07-09 09:58:17"}]
+```
+
+basic token has `"abilities":"[*]"` which means can do anything, that happened because we didn't specify any abilities for it so it got defaulted to `*` (all), so we should change it to `none` or anything we like but not `*` (all) as it is a basic token
+
+```sql
+UPDATE personal_access_tokens SET abilities = '["none"]' WHERE id = '3';
+```
+
+```sql
+select * from personal_access_tokens where id = '3';
+```
+
+```json
+[{"id":3,"tokenable_type":"App\\Models\\User","tokenable_id":3,"name":"basic-token","token":"450579341a0792b34532ec221a4a8a7e2923c2b005502639684d7f26a5f38c92","abilities":"[\"none\"]","last_used_at":"2024-07-09 09:58:17","expires_at":null,"created_at":"2024-07-08 10:56:12","updated_at":"2024-07-09 09:58:17"}]
+```
+
+so now basic has access to view only the data
+
+### authorization
+
+update these three files
+
+BulkStorelnvoiceRequest.php
+StoreCustomerRequest.php
+```php
+public function authorize(): bool
+{
+	$user = $this->user();
+
+	return $user != null && $user->tokenCan('create');
+
+	// we could make it like this 'ivnoice:create' or 'customer:create' to be more specific
+	// return $user != null && $user->tokenCan('create');
+}
+```
+
+UpdateCustomerRequest.php
+```php
+public function authorize(): bool
+{
+	$user = $this->user();
+
+	return $user != null && $user->tokenCan('update');
+}
+```
+
+POST `http://127.0.0.1:8000/api/v1/customers`
+with data 
+```json
+{
+  "name": "hamada_auth",
+  "type": "I",
+  "email": "hamada@yahoo.com",
+  "address": "38902 4ar3 el ms7a",
+  "city": "misr elmkasa",
+  "state": "transylvania",
+  "postalCode": "42069"
+}
+```
+
+without token
+```json
+{
+  "message": "Unauthenticated."
+}
+```
+
+with the bearer token 
+```json
+3|BK9cVAACBmG5NMuCNSMSs2LInO1qGWNq3yD3hklj9a284fc7
+```
+
+201 Created Response
+```json
+{
+  "data": {
+    "id": 132,
+    "name": "hamada_auth",
+    "type": "I",
+    "email": "hamada@yahoo.com",
+    "address": "38902 4ar3 el ms7a",
+    "city": "misr elmkasa",
+    "state": "transylvania",
+    "postalCode": "42069"
+  }
+}
+```
+
+same thing with PATCH `http://127.0.0.1:8000/api/v1/customers`
+
+and bulk insert POST `http://127.0.0.1:8000/api/v1/invoices/bulk`
+
+# Conclusion
+
+Laravel is battery included super easy to use framework that lets you focus on building the api rather than building anything from scratch yourself
+
+- dynamically typed that resulted in small errors that was hard to find
+- slow but in the context of the web wouldn't be a problem for a CRUD api
+- Everything just magically works, like for example sanctum.
+
+the last point feels like a plus rather than a downside but personally I don't like to work with that many layers of abstractions, it saves us from reinventing the wheel, but it's fun to do so sometimes and I could make a square-ish wheel but it would be my wheel.
+
 
 
 # References

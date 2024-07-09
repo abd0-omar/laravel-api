@@ -12,7 +12,12 @@ class StoreCustomerRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        // get the user
+        $user = $this->user();
+
+        // check if he's there
+        return $user != null && $user->tokenCan('create');
+        // return true;
     }
 
     /**
